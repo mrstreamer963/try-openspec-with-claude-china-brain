@@ -22,8 +22,27 @@ pub struct GameStateSnapshot {
 
 pub fn snapshot_state(
     world: &mut World,
-    map: &GameMap,
 ) -> GameStateSnapshot {
+    // Collect map data first (immutable borrow)
+    let map_data = {
+        let map = world.resource::<GameMap>();
+        map.tiles.iter().map(|row| {
+            row.iter().map(|tile| {
+                let kind = match tile.kind {
+                    TileKind::Water => "water",
+                    TileKind::Sand => "sand",
+                    TileKind::Grass => "grass",
+                }.to_string();
+                let building = tile.building.as_ref().map(|b| match b {
+                    Building::BerryBush => "berry_bush",
+                    Building::Bed => "bed",
+                }.to_string());
+                MapTileSnapshot { kind, building }
+            }).collect()
+        }).collect()
+    };
+
+    // Then mutable borrow for ECS query
     let mut unit_query = world.query::<(Entity, &Unit, &Position, &Needs, &CurrentState)>();
     let units = unit_query.iter(world).map(|(_, u, p, n, s)| {
         let mut debuffs = Vec::new();
@@ -34,21 +53,6 @@ pub fn snapshot_state(
             food: n.food, energy: n.energy,
             state: format!("{:?}", s.0), debuffs,
         }
-    }).collect();
-
-    let map_data = map.tiles.iter().map(|row| {
-        row.iter().map(|tile| {
-            let kind = match tile.kind {
-                TileKind::Water => "water",
-                TileKind::Sand => "sand",
-                TileKind::Grass => "grass",
-            }.to_string();
-            let building = tile.building.as_ref().map(|b| match b {
-                Building::BerryBush => "berry_bush",
-                Building::Bed => "bed",
-            }.to_string());
-            MapTileSnapshot { kind, building }
-        }).collect()
     }).collect();
 
     GameStateSnapshot { units, map: map_data }

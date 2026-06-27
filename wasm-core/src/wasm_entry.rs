@@ -15,7 +15,6 @@ use crate::{
 };
 
 static mut WORLD: Option<World> = None;
-static mut MAP: Option<GameMap> = None;
 
 #[wasm_bindgen]
 pub fn init() {
@@ -24,8 +23,6 @@ pub fn init() {
     world.insert_resource(GameRng(12345));
     world.insert_resource(CommandQueue::default());
     world.insert_resource(EventLog::default());
-
-    let mut map = GameMap::new(MAP_SIZE);
 
     let center = MAP_SIZE as f32 / 2.0;
     let names = ["Starlight", "Ember", "Rust"];
@@ -42,32 +39,39 @@ pub fn init() {
         ));
     }
 
-    for i in 0..4 {
-        let bx = 5.0 + (i as f32 * 7.0);
-        let by = 25.0;
-        let tile_x = bx as u16;
-        let tile_y = by as u16;
-        world.spawn((Position { x: bx, y: by }, BerryBush));
-        if let Some(t) = map.get_tile_mut(tile_x, tile_y) {
-            t.building = Some(Building::BerryBush);
+    // Insert map into World as a Resource so systems can access it via Res<GameMap>
+    world.insert_resource(GameMap::new(MAP_SIZE));
+    // Place buildings on the map
+    {
+        let mut wmap = world.resource_mut::<GameMap>();
+        for i in 0..4 {
+            let bx = 5.0 + (i as f32 * 7.0);
+            let by = 25.0;
+            if let Some(t) = wmap.get_tile_mut(bx as u16, by as u16) {
+                t.building = Some(Building::BerryBush);
+            }
+        }
+        if let Some(t) = wmap.get_tile_mut(25, 5) {
+            t.building = Some(Building::Bed);
         }
     }
 
-    world.spawn((Position { x: 25.0, y: 5.0 }, Bed));
-    if let Some(t) = map.get_tile_mut(25, 5) {
-        t.building = Some(Building::Bed);
+    // Spawn building entities for ECS queries (auto_need_system, etc.)
+    for i in 0..4 {
+        let bx = 5.0 + (i as f32 * 7.0);
+        let by = 25.0;
+        world.spawn((Position { x: bx, y: by }, BerryBush));
     }
+    world.spawn((Position { x: 25.0, y: 5.0 }, Bed));
 
     unsafe {
         WORLD = Some(world);
-        MAP = Some(map);
     }
 }
 
 #[wasm_bindgen]
 pub fn update(dt: f32) -> String {
     let world = unsafe { WORLD.as_mut().expect("World not initialized") };
-    let map = unsafe { MAP.as_mut().expect("Map not initialized") };
 
     world.insert_resource(Time { delta_seconds: dt });
 
@@ -91,7 +95,7 @@ pub fn update(dt: f32) -> String {
     cmd_sys.initialize(world);
     cmd_sys.run((), world);
 
-    let state = snapshot_state(world, map);
+    let state = snapshot_state(world);
 
     let mut event_log = world.resource_mut::<EventLog>();
     let events = event_log.drain_all();
