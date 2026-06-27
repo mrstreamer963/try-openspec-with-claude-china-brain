@@ -1,5 +1,7 @@
+use bevy_ecs::prelude::Resource;
 use crate::components::*;
 
+#[derive(Resource)]
 pub struct GameMap {
     pub tiles: Vec<Vec<Tile>>,
     pub size: u16,
