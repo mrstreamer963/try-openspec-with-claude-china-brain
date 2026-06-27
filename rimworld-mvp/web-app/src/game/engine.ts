@@ -38,7 +38,26 @@ export class GameEngine {
   private onPointerDown(event: PointerEvent) {
     const coords = this.renderer.getCanvasCoords(event.clientX, event.clientY);
     if (!coords || !this.store.gameState) return;
-    if (event.button === 2) { this.store.selectUnit(null); return; }  // right-click deselect
+
+    // Right-click behavior
+    if (event.button === 2) {
+      const clickedUnit = this.store.gameState.units.find(u => Math.floor(u.x) === coords.x && Math.floor(u.y) === coords.y);
+      if (clickedUnit) {
+        // Right-click on selected unit -> clear target / deselect
+        if (clickedUnit.id === this.store.selectedUnitId) {
+          this.store.selectUnit(null);
+        } else {
+          // Right-click on other unit -> deselect current selection
+          this.store.selectUnit(null);
+        }
+        return;
+      }
+      // Right-click on a tile (no unit) -> send MoveUnit command for selected unit
+      if (this.store.selectedUnitId !== null) {
+        this.worker.postMessage({ type: 'command', payload: { command: { MoveUnit: { unit_id: this.store.selectedUnitId, x: coords.x + 0.5, y: coords.y + 0.5 } } } });
+      }
+      return;
+    }
 
     if (this.store.buildMode) {
       this.worker.postMessage({ type: 'command', payload: { command: { PlaceBuilding: { x: coords.x, y: coords.y, kind: this.store.buildMode } } } });
