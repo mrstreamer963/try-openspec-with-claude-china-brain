@@ -1,12 +1,13 @@
 /// <reference lib="webworker" />
 
-let wasm: any = null;
+import init, { init as wasmInit, send_command, update } from 'wasm-core';
+
+let wasmReady = false;
 
 async function loadWasm() {
-  const wasmModule = await import('../wasm/wasm_core.js');
-  await wasmModule.default();
-  wasm = wasmModule;
-  wasm.init();
+  await init();
+  wasmInit();
+  wasmReady = true;
 }
 
 self.onmessage = async (e: MessageEvent) => {
@@ -16,15 +17,15 @@ self.onmessage = async (e: MessageEvent) => {
     self.postMessage({ type: 'initialized' });
     return;
   }
-  if (!wasm) return;
+  if (!wasmReady) return;
   switch (type) {
     case 'update': {
-      const result = wasm.update(payload.dt);
+      const result = update(payload.dt);
       self.postMessage({ type: 'state_update', payload: JSON.parse(result) });
       break;
     }
     case 'command': {
-      wasm.send_command(JSON.stringify(payload.command));
+      send_command(JSON.stringify(payload.command));
       break;
     }
   }
